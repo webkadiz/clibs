@@ -4,36 +4,7 @@
 #include "./string.h"
 
 
-struct string {
-	char *content;
-	int content_len;
-	int buf_len;
-};
-
-void init_empty_str(struct string *, unsigned int);
-struct string create_str(char *);
-void destroy_str(struct string);
-void destroy_array_str(struct string *);
-char *get_pchar(struct string);
-char get_char(struct string, unsigned int);
-int len_str(struct string);
-int is_empty_str(struct  string);
-int is_end_array_str(struct string);
-void realloc_str(struct string *);
-void append_str(struct string *, struct string);
-struct string concat_str(int, ...);
-struct string *split(struct string, char);
-struct string input_stdin();
-struct string input_line();
-struct string input_while(char);
-void print_str(struct string);
-struct string char2str(char);
-struct string int2str(int);
-
-
-const int BUF_LEN_INIT = 10;
-
-void init_empty_str(struct string *str, unsigned int buf_len_init)
+void init_empty_str(struct string *str, size_t buf_len_init)
 {
 	if (buf_len_init == 0) {
 		printf("buf init must be above zero\n");
@@ -46,11 +17,12 @@ void init_empty_str(struct string *str, unsigned int buf_len_init)
 	str->content_len = 0;
 }
 
-struct string create_str(char *pchar)
+struct string create_str(const char *pchar)
 {
 	struct string str;
+	size_t buf_len_init = 100;
 
-	init_empty_str(&str, BUF_LEN_INIT);
+	init_empty_str(&str, buf_len_init);
 
 	for (int i = 0; pchar[i]; i++) {
 		realloc_str(&str);
@@ -60,6 +32,13 @@ struct string create_str(char *pchar)
 
 	str.content[str.content_len] = 0; // string end
 
+	return str;
+}
+
+string create_null_str() {
+	string str = create_str("");
+	str.content_len = (size_t)-1;
+	
 	return str;
 }
 
@@ -85,13 +64,13 @@ char* get_pchar(struct string str)
 	return str.content;
 }
 
-char get_char(struct string str, unsigned int idx)
+char get_char(struct string str, size_t idx)
 {
 	if (idx >= str.content_len) return -1;
 	return str.content[idx];
 }
 
-int len_str(struct string str)
+size_t len_str(struct string str)
 {
 	return str.content_len;
 }
@@ -104,7 +83,18 @@ int is_empty_str(struct string str)
 
 int is_end_array_str(struct string str)
 {
-	if (str.content_len == -1) return 1;
+	if (str.content_len == (size_t)-1) return 1;
+	else return 0;
+}
+
+size_t is_null_str(string str) {
+	if (str.content_len == (size_t)-1) return 1;
+	else return 0;
+}
+
+int is_eof_str(struct string str)
+{
+	if (str.content_len == (size_t)-1) return 1;
 	else return 0;
 }
 
@@ -126,11 +116,17 @@ void append_str(struct string *str1, struct string str2)
 	str1->content[str1->content_len] = 0; // string end
 }
 
+void append_str_free(struct string *str1, struct string str2)
+{
+	append_str(str1, str2);
+	destroy_str(str2);
+}
+
 struct string concat_str(int str_number, ...)
 {
-	struct string *str_array = (struct string *)malloc(sizeof(struct string) * str_number);
+	struct string *str_array = (struct string *)malloc(sizeof(struct string) * (size_t)str_number);
 	struct string concated_str;
-	int concated_str_len = 0;
+	size_t concated_str_len = 0;
 	
 	va_list str_list;
 	va_start(str_list, str_number);
@@ -159,27 +155,55 @@ struct string concat_str(int str_number, ...)
 	return concated_str;
 }
 
+string copy_str(string str) {
+	return create_str(get_pchar(str));
+}
+
+int compare_str(string str1, string str2)
+{
+	size_t cur_len = str1.content_len < str2.content_len 
+		? str1.content_len
+		: str2.content_len;
+
+	for (size_t i = 0; i < cur_len; i++) {
+		char c1 = get_char(str1, i), c2 = get_char(str2, i);
+		if (c1 != c2)
+			return (c1 > c2) - (c1 < c2);
+	}
+
+	if (str1.content_len != str2.content_len)
+		return (str1.content_len > str2.content_len) - 
+				(str1.content_len < str2.content_len);
+
+	return 0;
+}
+
 struct string* split(struct string str, char separator)
 {
 	struct string *str_array;
-	int str_array_buf_len = BUF_LEN_INIT;
-	int str_array_len = 0;
+	size_t str_array_buf_len = 10;
+	size_t str_array_len = 0;
+	size_t str_len = len_str(str);
 	char *str_buf;
 
-	str_array = (struct string *)malloc(sizeof(struct string) * BUF_LEN_INIT);
-	str_buf = (char *)malloc(sizeof(char) * len_str(str) + 1);
+	if ((int)str_len < 0) str_len = 0;
 
-	for (int i = 0, buf_i = 0, j = 0; i <= len_str(str); i++, buf_i++) {
+	str_array = (struct string *)malloc(sizeof(struct string) * str_array_buf_len);
+	str_buf = (char *)malloc(sizeof(char) * str_len + 1);
+
+	for (size_t i = 0, buf_i = 0, j = 0; 
+		i <= str_len && str_len; i++, buf_i++
+	) {
 		str_buf[buf_i] = str.content[i];
 
-		if (str.content[i] == separator || i == len_str(str)) {
-			if (str_array_len + 2 > BUF_LEN_INIT) {
+		if (str.content[i] == separator || i == str_len) {
+			if (str_array_len + 2 > str_array_buf_len) {
 				str_array_buf_len *= 2;
 				str_array = (struct string *)realloc(str_array, sizeof(struct string) * str_array_buf_len);
 			}
 
 			str_buf[buf_i] = 0;
-			buf_i = -1; // begin fill buf with start
+			buf_i = (size_t)-1; // begin fill buf with start
 
 			str_array[j] = create_str(str_buf);
 
@@ -189,11 +213,27 @@ struct string* split(struct string str, char separator)
 	}
 
 	str_array[str_array_len] = create_str("");
-	str_array[str_array_len].content_len = -1;
+	str_array[str_array_len].content_len = (size_t)-1;
 
 	free(str_buf);
 	
 	return str_array;
+}
+
+string join_str(string *str_array, char separator) {
+	string str = create_str("");
+	string separator_str = char2str(separator);
+
+	for (int i = 0; !is_end_array_str(str_array[i]); i++) {
+		
+		append_str(&str, str_array[i]);
+		if (is_end_array_str(str_array[i+1])) break;
+		append_str(&str, separator_str);
+	}
+
+	destroy_str(separator_str);
+
+	return str;
 }
 
 struct string input_stdin()
@@ -205,7 +245,7 @@ struct string input_stdin()
 	str = create_str("");
 
 	while (1) {
-		c = getchar();
+		c = (char)getc(stdin);
 
 		if (c == EOF) break;
 
@@ -218,19 +258,23 @@ struct string input_stdin()
 	return str;
 }
 
-struct string input_line()
+struct string input_line(FILE *stream)
 {
 	char c;
 	struct string str;
 	struct string str_c;
 
 	str = create_str("");
-
+	
 	while (1) {
-		c = getchar();
+		c = (char)getc(stream);
 
 		if (c == '\r') continue;
-		if (c == '\n' || c == EOF) break;
+		if (c == EOF && str.content_len == 0) {
+			destroy_str(str);
+			return create_null_str();
+		}
+		if (c == EOF || c == '\n') break;
 
 		str_c = char2str(c);
 
@@ -241,8 +285,9 @@ struct string input_line()
 	return str;
 }
 
-struct string input_while(char target_c)
+struct string input_while(FILE *stream, char *targets_c)
 {
+	int is_exit = 0;
 	char c;
 	struct string str;
 	struct string str_c;
@@ -250,9 +295,17 @@ struct string input_while(char target_c)
 	str = create_str("");
 
 	while (1) {
-		c = getchar();
+		c = (char)getc(stream);
 
-		if (c == target_c || c == EOF) break;
+		for (int i = 0; targets_c[i]; i++) {
+			if (c == targets_c[i]) is_exit = 1;
+		}
+
+		if (c == EOF && str.content_len == 0) {
+			destroy_str(str);
+			return create_null_str();
+		}
+		if (c == EOF || is_exit) break;
 
 		str_c = char2str(c);
 
@@ -263,9 +316,9 @@ struct string input_while(char target_c)
 	return str;	
 }
 
-void print_str(struct string str)
+void print_str(char *format, struct string str)
 {
-	printf("%s", str.content);
+	printf(format, str.content);
 }
 
 struct string char2str(char c)
@@ -295,47 +348,4 @@ struct string int2str(int num)
 	}
 
 	return str;
-}
-
-int main()
-{
-
-	struct string text = input_stdin();
-	
-	struct string *str_arr = split(text, ' ');
-
-	
-
-	for (int i = 0; !is_end_array_str(str_arr[i]); i++) {
-		struct string alt = create_str("");
-		print_str( 
-			concat_str(
-				7,
-				create_str("len - "),
-				int2str(len_str(str_arr[i])),
-				create_str(" idx - "),
-				int2str(i),
-				create_str(" str - "),
-				str_arr[i],
-				char2str('\n')
-			)
-		);
-		append_str(&alt, create_str("len - "));
-		append_str(&alt, int2str(len_str(str_arr[i])));
-		append_str(&alt, create_str(" idx - "));
-		append_str(&alt, int2str(i));
-		append_str(&alt, create_str(" str - "));
-		append_str(&alt, str_arr[i]);
-		append_str(&alt, create_str("\n"));
-
-		print_str(alt);
-		
-		destroy_str(alt);
-	}
-
-	destroy_array_str(str_arr);
-
-	destroy_str(text);
-
-	return 0;
 }
